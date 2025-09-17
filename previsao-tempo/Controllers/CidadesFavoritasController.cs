@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using previsao_tempo.Data.Repositories;
 using previsao_tempo.Entities;
@@ -11,22 +13,45 @@ namespace previsao_tempo.Controllers
     [Route("[controller]")]
     public class CidadesFavoritasController : Controller
     {
+        private readonly UserManager<ApplicationUser> _userManager;
         private readonly ICidadesFavoritasRepository _cidadesFavoritasRepository;
-        public CidadesFavoritasController(ICidadesFavoritasRepository cidadesFavoritasRepository)
+        public CidadesFavoritasController(ICidadesFavoritasRepository cidadesFavoritasRepository, 
+            UserManager<ApplicationUser> userManager)
         {
             _cidadesFavoritasRepository = cidadesFavoritasRepository;
+            _userManager = userManager;
         }
 
         [HttpGet]
         public async Task<IActionResult> GetCidadesFavoritas()
         {
-            var lstCidades = await _cidadesFavoritasRepository.GetAsync("42c6cdb3-81a0-4776-87f6-f37e7d31928e");
+            var email = User.FindFirstValue(ClaimTypes.Email);
+
+            if (email == null)
+                return Unauthorized();
+
+            var user = await this._userManager.FindByEmailAsync(email);
+
+            if (user == null)
+                return Unauthorized();
+
+            var lstCidades = await _cidadesFavoritasRepository.GetAsync(user.Id);
             return Ok(lstCidades);
         }
 
         [HttpPost]
         public async Task<IActionResult> AdicionarCidadeFavorita(AddCidadeFavoritaDTO cidadeFavoritaDTO)
         {
+            var email = User.FindFirstValue(ClaimTypes.Email);
+
+            if (email == null)
+                return Unauthorized();
+
+            var user = await this._userManager.FindByEmailAsync(email);
+
+            if (user == null)
+                return Unauthorized();
+
             CidadeFavorita cidadeFavorita = new CidadeFavorita
             {
                 Estado = cidadeFavoritaDTO.Estado,
@@ -34,7 +59,7 @@ namespace previsao_tempo.Controllers
                 Pais = cidadeFavoritaDTO.Pais,
                 Latitude = cidadeFavoritaDTO.Latitude,
                 Longitude = cidadeFavoritaDTO.Longitude,
-                UsuarioId = "42c6cdb3-81a0-4776-87f6-f37e7d31928e"
+                UsuarioId = user.Id
             };
 
             await _cidadesFavoritasRepository.AdicionarAsync(cidadeFavorita);
@@ -44,6 +69,21 @@ namespace previsao_tempo.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> RemoverCidadeFavorita(int id)
         {
+            var email = User.FindFirstValue(ClaimTypes.Email);
+
+            if (email == null)
+                return Unauthorized();
+
+            var user = await this._userManager.FindByEmailAsync(email);
+
+            if (user == null)
+                return Unauthorized();
+
+            var lstCidades = await _cidadesFavoritasRepository.GetAsync(user.Id);
+
+            if(lstCidades.Where(x => x.Id == id).Count() == 0)
+                return Unauthorized();
+
             await _cidadesFavoritasRepository.RemoverAsync(id);
             return Ok();
         }
